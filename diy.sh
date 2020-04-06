@@ -17,11 +17,6 @@ uci set system.@system[0].timezone=CST-8
 uci set system.@system[0].zonename=Asia/Shanghai
 uci commit system
 
-# 默认开启网络加速
-uci set flowoffload.@flow[0]=flow
-uci set flowoffload.@flow[0].bbr=1
-uci set flowoffload.@flow[0].dns=1
-uci commit flowoffload
 
 #设置默认管理IP地址
 uci set network.lan.ipaddr='10.0.0.1'
