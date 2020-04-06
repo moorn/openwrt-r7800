@@ -1,121 +1,143 @@
 #=================================================
-# https://github.com/P3TERX/Actions-OpenWrt
+# https://github.com/ClayMoreBoy/OpenWrt-Actions-R7800
 # Description: Build OpenWrt using GitHub Actions
 # Lisence: MIT
-# Author: P3TERX
-# Blog: https://p3terx.com
+# Author: ClayMoreBoy
+# Github: https://github.com/ClayMoreBoy
 #=================================================
 
-name: Build OpenWrt
+name: OpenWrt-R7800-Lean(固件)
 
 on:
-  release:
-    types: published
-  push:
-    branches:
-      - master
-    paths:
-      - '.config'
-#  schedule:
-#    - cron: 0 8 * * 5
-#  watch:
-#    types: started
+# 定时触发
+  schedule:
+    - cron: 0 01 * * *
+
+# release触发
+#  release:
+#    types: [published]
+
+# 点赞触发
+  watch:
+    types: [started]
+
+# 编辑触发
+#  push:
+#    branches: 
+#       - master
+
+# config触发
+#  paths:
+#    - 'x86_64.config'
+
+#FREE_UP_DISK 释放磁盘空间
+#SSH_ACTIONS 开启SSH连接
+#UPLOAD_BIN_DIR上传BIN目录
+#UPLOAD_FIRMWARE上传固件目录
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
   REPO_BRANCH: master
   CONFIG_FILE: .config
   DIY_SH: diy.sh
+  FREE_UP_DISK: true
   SSH_ACTIONS: false
-  UPLOAD_BIN_DIR: false
+  UPLOAD_BIN_DIR: true
   UPLOAD_FIRMWARE: true
-  UPLOAD_COWTRANSFER: false
   TZ: Asia/Shanghai
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     if: github.event.repository.owner.id == github.event.sender.id
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
+    - name: 校验本地文件
       uses: actions/checkout@master
 
-    - name: Initialization environment
+    - name: 初始化编译环境
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo swapoff /swapfile
-        sudo rm -rf /swapfile /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo rm -rf /swapfile /etc/apt/sources.list.d/*
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs gcc-multilib g++-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler
+        sudo apt-get -y install asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache flex g++ gawk gcc gcc-multilib gettext git git-core help2man htop lib32gcc1 libc6-dev-i386 libglib2.0-dev libncurses5-dev libssl-dev libtool libz-dev libelf-dev make msmtp ncurses-term ocaml-nox p7zip p7zip-full patch qemu-utils sharutils subversion texinfo uglifyjs unzip upx xmlto yui-compressor zlib1g-dev make cmake device-tree-compiler  g++-multilib  python3.5
+        curl -fsSL https://github.com/ClayMoreBoy/dotfiles/raw/master/.bashrc >> ~/.bashrc
+    - name: 释放磁盘空间
+      if: env.FREE_UP_DISK == 'true'
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        docker rmi `docker images -q`
+        sudo -E apt-get -q purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* mysql* php*
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
-        curl -fsSL https://raw.githubusercontent.com/P3TERX/dotfiles/master/.bashrc >> ~/.bashrc
-
-    - name: Clone source code
+    - name: 克隆源代码
       run: git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
 
-    - name: Update feeds
-      run: cd openwrt && ./scripts/feeds update -a
+    - name: 更新源
+      working-directory: ./openwrt
+      run:  |
+        sed -i '$a\src-git lienol https:\/\/github.com\/Lienol\/openwrt-package' feeds.conf.default
+        ./scripts/feeds update -a
+        rm -rf feeds/lienol/package/verysync
+        rm -rf feeds/lienol/lienol/luci-app-verysync
+        rm -rf package/lean/kcptun
+        rm -rf package/lean/luci-app-kodexplorer
+        rm -rf package/lean/luci-app-pppoe-relay
+        rm -rf package/lean/luci-app-pptp-server
+        rm -rf package/lean/luci-app-v2ray-server
+    - name: 安装源
+      working-directory: ./openwrt
+      run:  ./scripts/feeds install -a
 
-    - name: Install feeds
-      run: cd openwrt && ./scripts/feeds install -a
-
-    - name: Load custom configuration
+    - name: 创建自定义配置文件 - OpenWrt-R7800
       run: |
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
         chmod +x $DIY_SH
         cd openwrt
         ../$DIY_SH
-
-    - name: SSH connection to Actions
+		
+    - name: 开启SSH远程连接
       uses: P3TERX/debugger-action@master
       if: env.SSH_ACTIONS == 'true'
 
-    - name: Download package
+    - name: 下载软件包
+      working-directory: ./openwrt
       id: package
       run: |
-        cd openwrt
-        make defconfig
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
-
-    - name: Compile the firmware
+    - name: 编译固件
+      working-directory: ./openwrt
       id: compile
       run: |
-        cd openwrt
         echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 V=s
         echo "::set-output name=status::success"
-
-    - name: Upload bin directory
+    - name: 上传BIN目录
       uses: actions/upload-artifact@master
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
-        name: OpenWrt_bin
+        name: OpenWrt-Bin-Lean(IPK插件集)
         path: openwrt/bin
 
-    - name: Organize files
+    - name: 整理文件
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        echo "::set-env name=FIRMWARE::$PWD"
-        echo "::set-output name=status::success"
-
-    - name: Upload firmware directory
+          rm -rf ./artifact/
+          mkdir -p ./artifact/
+          mv openwrt/.config  ./artifact/.config
+          find openwrt/bin/targets/ -name "*squashfs*img*" | xargs -i mv -f {} ./artifact/
+          find openwrt/bin/targets/ -name "*squashfs*bin*" | xargs -i mv -f {} ./artifact/
+    - name: 上传固件
       uses: actions/upload-artifact@master
-      if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
-        name: OpenWrt_firmware
-        path: ${{ env.FIRMWARE }}
-
-    - name: Upload firmware to cowtransfer
-      if: env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
-      run: |
-        curl -sL https://git.io/cowtransfer | sh
-        ./cowtransfer-uploader -s -p 8 ${FIRMWARE}
+        name: OpenWrt-Firmware-R7800-Lean
+        path: ./artifact/
+  
