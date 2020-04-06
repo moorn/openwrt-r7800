@@ -25,5 +25,9 @@ uci commit network
 sed -i '/log-facility/d' /etc/dnsmasq.conf
 echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
 
+# 添加第三方软件包
+git clone https://github.com/moorn/smartdns package/smartdns
+
+
 exit 0
 
