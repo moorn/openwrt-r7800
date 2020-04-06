@@ -7,9 +7,6 @@
 #=================================================
 # Modify default IP
 #sed -i 's/192.168.1.1/192.168.50.5/g' package/base-files/files/bin/config_generate
-# 默认主题
-uci set luci.main.lang=zh_cn
-uci commit luci
 
 # 固件名称
 uci set system.@system[0].hostname=R7
