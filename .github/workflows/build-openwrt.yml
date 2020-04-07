@@ -65,15 +65,8 @@ jobs:
     - name: 更新源
       working-directory: ./openwrt
       run:  |
-        sed -i '$a\src-git lienol https:\/\/github.com\/Lienol\/openwrt-package' feeds.conf.default
         ./scripts/feeds update -a
-        rm -rf feeds/lienol/package/verysync
-        rm -rf feeds/lienol/lienol/luci-app-verysync
-        rm -rf package/lean/kcptun
-        rm -rf package/lean/luci-app-kodexplorer
-        rm -rf package/lean/luci-app-pppoe-relay
-        rm -rf package/lean/luci-app-pptp-server
-        rm -rf package/lean/luci-app-v2ray-server
+
     - name: 安装源
       working-directory: ./openwrt
       run:  ./scripts/feeds install -a
